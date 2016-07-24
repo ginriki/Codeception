@@ -178,12 +178,10 @@ EOF;
     {
         $em = $this->em;
 
-        $reflectedEm = new \ReflectionClass($em);
-        if ($reflectedEm->hasProperty('repositories')) {
-            $property = $reflectedEm->getProperty('repositories');
-            $property->setAccessible(true);
-            $property->setValue($em, []);
-        }
+        $this->modifyRepositoryList($em, function($list){
+            return [];
+        });
+
         $this->em->clear();
     }
 
@@ -270,15 +268,14 @@ EOF;
             )
         );
         $em->clear();
-        $reflectedEm = new \ReflectionClass($em);
-        if ($reflectedEm->hasProperty('repositories')) {
-            $property = $reflectedEm->getProperty('repositories');
-            $property->setAccessible(true);
-            $property->setValue($em, array_merge($property->getValue($em), [$classname => $mock]));
-        } else {
+        $rl = $this->modifyRepositoryList($em, function($list) use ($classname, $mock) {
+            return array_merge($list, [$classname => $mock]);
+        });
+
+        if (!$rl) {
             $this->debugSection(
                 'Warning',
-                'Repository can\'t be mocked, the EventManager class doesn\'t have "repositories" property'
+                'Repository can\'t be mocked, the EventManager class doesn\'t have expected property'
             );
         }
     }
@@ -439,5 +436,32 @@ EOF;
     public function _getEntityManager()
     {
         return $this->em;
+    }
+
+    protected function modifyRepositoryList($em, $opfunc)
+    {
+        $reflectedEm = new \ReflectionClass($em);
+        if ($reflectedEm->hasProperty('repositories')) { // doctirne 2.3 or lower
+            $property = $reflectedEm->getProperty('repositories');
+            $property->setAccessible(true);
+            $property->setValue($em, $opfunc($property->getValue($em)));
+            return true;
+        }
+
+        if ($reflectedEm->hasProperty('repositoryFactory')) { // doctrine 2.4
+            $property = $reflectedEm->getProperty('repositoryFactory');
+            $property->setAccessible(true);
+            $repositoryFactory = $property->getValue($em);
+            $reflectedRepositoryFactory = new \ReflectionClass($repositoryFactory);
+            
+            if ($reflectedRepositoryFactory->hasProperty('repositoryList')) {
+                $property = $reflectedRepositoryFactory->getProperty('repositoryList');
+                $property->setAccessible(true);
+                $property->setValue($repositoryFactory, $opfunc($property->getValue($repositoryFactory)));
+                return true;
+            }
+        }
+
+        return false;
     }
 }
