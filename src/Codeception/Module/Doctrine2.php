@@ -166,7 +166,7 @@ class Doctrine2 extends \Codeception\Module
         if (!$customRepositoryClassName) {
             $customRepositoryClassName = '\Doctrine\ORM\EntityRepository';
         }
-        $mock = Stub::make(
+        $mock = \Codeception\Util\Stub::make(
             $customRepositoryClassName,
             array_merge(
                 [
